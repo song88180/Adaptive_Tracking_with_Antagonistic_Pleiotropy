@@ -1,8 +1,9 @@
 initialize() {
   defineConstant("Ne",10000);
+  //defineConstant("lambda", 10);
   defineConstant("P_ben_max",0.25);
   //defineConstant("rep",1);
-  defineConstant("Name","AdapTrack_pop"+Ne);
+  defineConstant("Name","AdapTrack_lambda"+lambda);
   defineConstant("Root","../Simulation_log");
   initializeMutationType("m1", 0.5, "f", 0.0); 
   initializeMutationType("m0", 0.5, "f", 0.0); 
@@ -38,22 +39,32 @@ initialize() {
 early() {
   if( sim.generation % 1000 == 0)
     print(sim.generation);
+ 
+  P_ben2del = rexp(1,1.0/lambda);
+  while (P_ben2del > 1)
+    P_ben2del = rexp(1,1.0/lambda);
+  P_del2ben = (0.02/0.14)*P_ben2del; //14% mutations can be either beneficial or deleterious.
 
-  if( runif(1) < 1/50){
-    muts = sim.mutationsOfType(m1);
-    env_idx = p1.getValue('env_idx');
-    env_idx = env_idx+1; 
-    p1.setValue('env_idx',env_idx);
-    harshness = max(rnorm(1,1,0.15), 0.0);
-    p1.setValue('harshness',harshness);
-    for (mut in muts){
-      beneficial_P = mut.getValue('P_ben');
-      selcoeff_size = mut.getValue('selcoeff_size');
-      if (selcoeff_size == 0) // neutral mutation
-        next;
-      selcoeff_size_env = selcoeff_size * harshness;
-      selcoeff = rgamma(1,selcoeff_size_env,10);
-      if (runif(1) > beneficial_P)
+  muts = sim.mutations;
+  env_idx = p1.getValue('env_idx');
+  env_idx = env_idx+1;
+  p1.setValue('env_idx',env_idx);
+  harshness = pmax(rnorm(1,1,0.15), 0.0);
+  p1.setValue('harshness',harshness);
+  for (mut in muts){
+    selcoeff_size = mut.getValue('selcoeff_size');
+    beneficial_P = mut.getValue('P_ben');
+    if (selcoeff_size == 0.0)
+      next;
+    selcoeff_size_env = selcoeff_size * harshness;
+    selcoeff = rgamma(1,selcoeff_size_env,10);
+    if (beneficial_P == 0.0)                // mutations always deleterious
+      mut.setSelectionCoeff(-selcoeff);
+    else{
+      selcoeff_cur = mut.selectionCoeff;
+      if ((selcoeff_cur > 0.0) & (runif(1) < P_ben2del))
+        selcoeff = -selcoeff;
+      if ((selcoeff_cur < 0.0) & (runif(1) > P_del2ben))
         selcoeff = -selcoeff;
       mut.setSelectionCoeff(selcoeff);
     }
@@ -61,7 +72,6 @@ early() {
 } 
 
 mutation(m1){
-  
   P_ben_0 = 1.0-0.04/P_ben_max;  // so that mean P_ben = 0.02
   if ( runif(1) < P_ben_0)
     beneficial_P = 0;
@@ -108,7 +118,7 @@ late() {
 
 200000 late() {
   sim.simulationFinished();
-  lines = 'ID,mean_selcoef,cur_selcoef,effective_selcoef,AF,isFixed,Gen_S,Gen_E';
+  lines = 'ID,mean_selcoef,cur_selcoef,expected_selcoef,AF,isFixed,Gen_S,Gen_E';
 
   for (type in c('muts', 'subs')){
     if (type == 'muts'){
@@ -123,33 +133,34 @@ late() {
     i = 0;
     for (mut in mutation_set){
       beneficial_P = mut.getValue('P_ben');
+      if (beneficial_P > 0.0)
+        beneficial_P = 0.125;
       selcoeff_size = mut.getValue('selcoeff_size');
       if (selcoeff_size != 0){
-        mut_mean_selcoeff = (1+selcoeff_size)^beneficial_P * (1-selcoeff_size)^(1-beneficial_P) - 1;
+        mut_expected_selcoeff = (1+selcoeff_size)^beneficial_P * (1-selcoeff_size)^(1-beneficial_P) - 1;
       
         AF_history = mut.getValue('AF_history');
         selcoeff_history = mut.getValue('selcoeff_history');
-        effective_selcoeffs = selcoeff_history[(AF_history*2*Ne > 1/abs(selcoeff_history)) & ((1-AF_history)*2*Ne > 1/abs(selcoeff_history))];
-        if (length(effective_selcoeffs) > 0)
-          mut_effective_selcoeff = product(1+effective_selcoeffs)^(1/length(effective_selcoeffs)) - 1;
+        if (length(selcoeff_history) > 0)
+          mut_mean_selcoeff = product(1+selcoeff_history)^(1/length(selcoeff_history)) - 1;
         else
-          mut_effective_selcoeff = 'NA';
+          mut_mean_selcoeff = 'NA';
         selcoeff_history_lines = c(selcoeff_history_lines, mut.id);
         selcoeff_history_lines = c(selcoeff_history_lines, paste(mut.getValue('AF_history')));
         selcoeff_history_lines = c(selcoeff_history_lines, paste(mut.getValue('selcoeff_history')),'');
       }
       else{
+        mut_expected_selcoeff = 0;
         mut_mean_selcoeff = 0;
-        mut_effective_selcoeff = 0;
         selcoeff_history_lines = c(selcoeff_history_lines,mut.id);
         selcoeff_history_lines = c(selcoeff_history_lines,'-1\n0','');
       }
       
       if (type == 'muts')
-        lines = c(lines, paste(mut.id, mut_mean_selcoeff, mut.selectionCoeff, mut_effective_selcoeff, Freqs[i], 'F', mut.originGeneration, -1, sep=','));
+        lines = c(lines, paste(mut.id, mut_mean_selcoeff, mut.selectionCoeff, mut_expected_selcoeff, Freqs[i], 'F', mut.originGeneration, -1, sep=','));
       
       else if (type == 'subs')
-        lines = c(lines, paste(mut.id, mut_mean_selcoeff, mut.selectionCoeff, mut_effective_selcoeff, 1, 'T', mut.originGeneration, mut.fixationGeneration, sep=','));
+        lines = c(lines, paste(mut.id, mut_mean_selcoeff, mut.selectionCoeff, mut_expected_selcoeff, 1, 'T', mut.originGeneration, mut.fixationGeneration, sep=','));
         
       
       i = i+1;

@@ -83,7 +83,7 @@ late() {
 
 200000 late() {
   sim.simulationFinished();
-  lines = 'ID,mean_selcoef,cur_selcoef,effective_selcoef,AF,isFixed,Gen_S,Gen_E';
+  lines = 'ID,mean_selcoef,cur_selcoef,expected_selcoef,AF,isFixed,Gen_S,Gen_E';
 
   for (type in c('muts', 'subs')){
     if (type == 'muts'){
@@ -96,14 +96,14 @@ late() {
     
     i = 0;
     for (mut in mutation_set){
+      mut_expected_selcoeff = mut.selectionCoeff;
       mut_mean_selcoeff = mut.selectionCoeff;
-      mut_effective_selcoeff = mut.selectionCoeff;
       
       if (type == 'muts')
-        lines = c(lines, paste(mut.id, mut_mean_selcoeff, mut.selectionCoeff, mut_effective_selcoeff, Freqs[i], 'F', mut.originGeneration, -1, sep=','));
+        lines = c(lines, paste(mut.id, mut_mean_selcoeff, mut.selectionCoeff, mut_expected_selcoeff, Freqs[i], 'F', mut.originGeneration, -1, sep=','));
       
       else if (type == 'subs')
-        lines = c(lines, paste(mut.id, mut_mean_selcoeff, mut.selectionCoeff, mut_effective_selcoeff, 1, 'T', mut.originGeneration, mut.fixationGeneration, sep=','));
+        lines = c(lines, paste(mut.id, mut_mean_selcoeff, mut.selectionCoeff, mut_expected_selcoeff, 1, 'T', mut.originGeneration, mut.fixationGeneration, sep=','));
       
       i = i+1;
     }
