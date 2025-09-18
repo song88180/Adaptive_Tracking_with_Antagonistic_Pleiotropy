@@ -1,5 +1,7 @@
 # Adaptive_Tracking_with_Antagonsitic_Pleiotropy
-Scripts for paper "Adaptive tracking results in seemingly neutral molecular evolution"
+Scripts for paper "Adaptive tracking results in seemingly neutral molecular evolution".  
+Files in **data** folder is not complete due to their large size, and a complete **data** 
+folder can be retrieved from the [Zenodo record](https://doi.org/10.5281/zenodo.17149945)
 
 ### Required software and packages:
 
